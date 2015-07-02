@@ -7,11 +7,10 @@ require 'logger'
 class Crawler
 
   def initialize url
-    @base_url = url
-    uri = URI.parse(@base_url)
-    @report_file = File.open("logs/#{uri.host}.report.log", 'w+')
-    @logger_err = Logger.new("logs/#{uri.host}.error.log")
-    @http = Net::HTTP.new(uri.host, uri.port)
+    find_base_url(url)
+    @report_file = File.open("logs/#{@uri.host}.report.log", 'w+')
+    @logger_err = Logger.new("logs/#{@uri.host}.error.log")
+    @http = Net::HTTP.new(@uri.host, @uri.port)
     @links = {}
     @results = []
     @error_count = 0
@@ -49,17 +48,15 @@ class Crawler
         @logger_err.error "    COMING FROM: #{origins.join(' , ')}"
       end 
     end
-  end  
+  end
 
   def go
     parse '/', [], true
-    #@links.uniq!
     puts  "Level 1: found #{@links.count} links: parsing its"
     @links.clone.each do |link, origins|
       @links.delete link
       parse link, origins, true
     end
-    #@links.uniq!
     puts "Level 2: found #{@links.count} links: parsing its"
     remaining = @links.count 
 
@@ -79,6 +76,21 @@ class Crawler
     @report_file.close
   end
 
+  private
+    def find_base_url(base_url)
+      uri = URI.parse(base_url)
+      request = Net::HTTP::Get.new('/')
+      http = Net::HTTP.new(uri.host, uri.port)
+      response = http.request(request)
+      code = response.code.to_i
+      if code == 301 || code == 302
+        find_base_url response.header['location']
+      else
+        @base_url = base_url
+        @http = http
+        @uri = uri
+      end
+    end
 end
 
 #Crawler.new('http://nick-1.nick.de').go
